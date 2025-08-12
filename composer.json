@@ -1,5 +1,5 @@
 {
-  "name": "mosh/excel-export-streamer",
+  "name": "moshontong/excel-export-streamer",
   "description": "A memory-efficient Laravel package for streaming Excel exports without holding data in memory",
   "type": "library",
   "license": "MIT",
