@@ -4,11 +4,11 @@
 [![Total Downloads](https://img.shields.io/packagist/dt/mosh/excel-export-streamer.svg?style=flat-square)](https://packagist.org/packages/mosh/excel-export-streamer)
 [![License](https://img.shields.io/packagist/l/mosh/excel-export-streamer.svg?style=flat-square)](https://packagist.org/packages/mosh/excel-export-streamer)
 
-A memory-efficient Laravel package for streaming Excel exports without holding large datasets in memory. Perfect for exporting millions of records without running into memory limits.
+A memory-efficient Laravel package for exporting Excel files without running into memory limits. Features true streaming for CSV exports and memory-optimized file generation for XLSX exports. Perfect for exporting millions of records safely and efficiently.
 
 ## Features
 
-- **Memory Efficient**: Streams data directly to response without loading everything into memory
+- **Memory Efficient**: Uses different optimized approaches per format - true streaming for CSV, temporary files for XLSX
 - **Flexible Data Sources**: Works with Eloquent queries, arrays, or custom data providers
 - **Multiple Formats**: Supports CSV and XLSX formats
 - **Multi-Sheet Support**: Create XLSX files with multiple worksheets
@@ -17,6 +17,24 @@ A memory-efficient Laravel package for streaming Excel exports without holding l
 - **Comprehensive Logging**: Built-in logging for debugging and monitoring
 - **Performance Optimized**: Automatic query complexity detection and chunk size optimization
 - **No External Dependencies**: Built with native PHP and Laravel
+
+## How It Works
+
+The package uses different approaches optimized for each export format:
+
+### CSV Exports 🚀
+- **True Streaming**: Data streams directly from database to browser chunk-by-chunk
+- **Immediate Download**: Download dialog appears instantly as data flows
+- **Memory Efficient**: Never holds the full dataset in memory
+- **Best For**: Large datasets where immediate streaming is priority
+
+### XLSX Exports 📊  
+- **Generate + Stream**: Creates complete XLSX file using temporary storage, then streams the file
+- **Excel Compatible**: Produces valid ZIP-structured XLSX files that Excel opens correctly
+- **Memory Optimized**: Uses chunked processing and temporary files to minimize memory usage
+- **Best For**: Datasets requiring Excel compatibility, multi-sheet functionality
+
+> **💡 Pro Tip**: Choose CSV for maximum performance and true streaming. Choose XLSX when Excel compatibility and formatting are required.
 
 ## Installation
 
@@ -66,8 +84,19 @@ public function exportUsers(ExcelStreamExporter $exporter)
     return $exporter->streamFromQuery(
         $query,
         ['name', 'email', 'profile.phone', 'created_at'],
-        'active-users.xlsx',
+        'active-users.xlsx', // XLSX: generates file first, then streams
         ['format' => 'xlsx', 'chunk_size' => 500]
+    );
+}
+
+// For true streaming, use CSV format:
+public function exportUsersStreaming(ExcelStreamExporter $exporter)
+{
+    return $exporter->streamFromQuery(
+        User::where('active', true)->orderBy('created_at'),
+        ['name', 'email', 'created_at'],
+        'active-users.csv', // CSV: streams immediately as data is processed
+        ['format' => 'csv', 'chunk_size' => 2000]
     );
 }
 ```
@@ -144,6 +173,8 @@ public function exportMultiSheet(ExcelStreamExporter $exporter)
         ]
     ];
 
+    // Note: Multi-sheet exports generate complete file first, then stream
+    // This ensures proper XLSX structure but requires temporary storage
     return $exporter->streamWrapAsSheets($sheets, 'multi-report.xlsx');
 }
 ```
@@ -320,11 +351,21 @@ export default {
 
 ## Performance Tips
 
-1. **Optimize Chunk Size**: Start with 1000, adjust based on your data size and memory
-2. **Use Specific Columns**: Only select columns you need
-3. **Add Database Indexes**: Ensure your queries are optimized
-4. **Consider CSV for Large Datasets**: CSV is faster and uses less memory than XLSX
-5. **Enable Query Log Disabling**: Set `disable_query_log` to true in config
+### Format Selection
+1. **Choose CSV for True Streaming**: For maximum performance and immediate download, use CSV format
+2. **Use XLSX When Excel Compatibility Required**: Accept the trade-off of file generation for proper Excel support
+3. **Consider Dataset Size**: CSV handles millions of records with constant memory usage; XLSX uses temporary files
+
+### Optimization Strategies  
+4. **Optimize Chunk Size**: Start with 1000 for XLSX, 2000+ for CSV; adjust based on your data complexity
+5. **Use Specific Columns**: Only select columns you need - especially important for XLSX temporary file size
+6. **Add Database Indexes**: Ensure your queries are optimized for the columns you're ordering by
+7. **Monitor Memory Usage**: Enable memory warnings in config to track usage patterns
+8. **Enable Query Log Disabling**: Set `disable_query_log` to true in config for better performance
+
+### XLSX-Specific Tips
+9. **Temporary Directory**: Configure fast storage (SSD) for `temp_dir` in XLSX config  
+10. **Cleanup Monitoring**: Large XLSX exports create temporary files - ensure adequate disk space
 
 ## Error Handling
 
