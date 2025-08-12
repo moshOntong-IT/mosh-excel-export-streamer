@@ -1,0 +1,59 @@
+{
+  "name": "mosh/excel-export-streamer",
+  "description": "A memory-efficient Laravel package for streaming Excel exports without holding data in memory",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Muslimin Ontong",
+      "email": "moshontong@gmail.com"
+    }
+  ],
+  "keywords": [
+    "laravel",
+    "excel",
+    "export",
+    "streaming",
+    "memory-efficient",
+    "csv",
+    "xlsx",
+    "multi-sheet",
+    "chunking",
+    "large-dataset"
+  ],
+  "homepage": "https://github.com/moshontong/mosh-excel-export-streamer",
+  "support": {
+    "issues": "https://github.com/moshontong/mosh-excel-export-streamer/issues",
+    "source": "https://github.com/moshontong/mosh-excel-export-streamer"
+  },
+  "require": {
+    "php": "^8.1",
+    "laravel/framework": "^10.0|^11.0|^12.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10.0",
+    "orchestra/testbench": "^8.0|^9.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Mosh\\ExcelExportStreamer\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Mosh\\ExcelExportStreamer\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Mosh\\ExcelExportStreamer\\ExcelExportStreamerServiceProvider"
+      ]
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "config": {
+    "sort-packages": true
+  }
+}

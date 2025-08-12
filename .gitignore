@@ -1,0 +1,44 @@
+# Composer
+/vendor/
+composer.lock
+
+# Testing
+.phpunit.result.cache
+.phpunit.cache/
+/coverage/
+/build/
+/test-laravel-app/
+/tests/temp/
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+*.cache
+
+# Environment files
+.env
+.env.*
+
+# Package specific
+/tests/fixtures/*.xlsx
+/tests/fixtures/*.csv
+*.xlsx
+*.csv
