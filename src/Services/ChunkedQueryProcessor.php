@@ -15,11 +15,18 @@ class ChunkedQueryProcessor implements DataProviderInterface
     protected array $columns;
     protected int $chunkSize;
     protected ?int $totalCount = null;
+    
+    /**
+     * Optional data mapper callback for row transformations
+     * @var callable|null
+     */
+    protected $dataMapper = null;
 
-    public function __construct(Builder $query, array $columns = ['*'], ?int $chunkSize = null)
+    public function __construct(Builder $query, array $columns = ['*'], ?int $chunkSize = null, ?callable $dataMapper = null)
     {
         $this->query = $query;
         $this->columns = $columns;
+        $this->dataMapper = $dataMapper;
         
         // Analyze query complexity and optimize chunk size
         $this->chunkSize = $this->optimizeChunkSizeForQuery($query, $chunkSize);
@@ -55,9 +62,26 @@ class ChunkedQueryProcessor implements DataProviderInterface
             $data = [];
             
             foreach ($chunk as $record) {
-                if (method_exists($record, 'transformForExport')) {
-                    $data[] = $record->transformForExport();
-                } else {
+                try {
+                    if ($this->dataMapper !== null) {
+                        // Use the provided data mapper callback
+                        $data[] = call_user_func($this->dataMapper, $record);
+                    } elseif (method_exists($record, 'transformForExport')) {
+                        // Use model's built-in export transformation
+                        $data[] = $record->transformForExport();
+                    } else {
+                        // Fall back to default column extraction
+                        $data[] = $this->extractColumnData($record);
+                    }
+                } catch (\Throwable $e) {
+                    // Log mapper error but continue processing
+                    Log::warning("Data mapper failed for record", [
+                        'record_id' => $record->getKey() ?? 'unknown',
+                        'error' => $e->getMessage(),
+                        'chunk_number' => $chunkNumber,
+                    ]);
+                    
+                    // Fall back to default column extraction
                     $data[] = $this->extractColumnData($record);
                 }
             }

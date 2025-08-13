@@ -148,7 +148,10 @@ class MultiSheetExporter
         $options = $sheetData['options'];
         
         $chunkSize = $options['chunk_size'] ?? $this->getOptimalChunkSize($query);
-        $processor = new ChunkedQueryProcessor($query, $columns, $chunkSize);
+        $dataMapper = $options['data_mapper'] ?? null;
+        
+        
+        $processor = new ChunkedQueryProcessor($query, $columns, $chunkSize, $dataMapper);
         
         // Create worksheet XML content using temporary file for memory efficiency
         $tempWorksheetFile = $this->generateWorksheetXmlToFile($processor);

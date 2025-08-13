@@ -30,7 +30,8 @@ class ExcelStreamExporter implements StreamExporterInterface
         Builder $query,
         array $columns,
         string $filename,
-        array $options = []
+        array $options = [],
+        ?callable $dataMapper = null
     ): StreamedResponse {
         try {
             $options = array_merge($this->defaultOptions, $options);
@@ -41,7 +42,7 @@ class ExcelStreamExporter implements StreamExporterInterface
                 $chunkSize = $options['chunk_size'];
             }
 
-            $processor = new ChunkedQueryProcessor($query, $columns, $chunkSize);
+            $processor = new ChunkedQueryProcessor($query, $columns, $chunkSize, $dataMapper);
             $expectedRecords = $processor->getTotalCount();
 
             $this->logger->logExportStart($filename, $expectedRecords, $options);
@@ -320,10 +321,11 @@ class ExcelStreamExporter implements StreamExporterInterface
         
         $multiSheetExporter = new MultiSheetExporter();
         
-        // Extract query and columns from provider if possible
+        // Extract query, columns, and data mapper from provider if possible
         if ($provider instanceof ChunkedQueryProcessor) {
             // Use reflection to access protected properties
             $reflection = new \ReflectionClass($provider);
+            
             $queryProperty = $reflection->getProperty('query');
             $queryProperty->setAccessible(true);
             $query = $queryProperty->getValue($provider);
@@ -332,8 +334,16 @@ class ExcelStreamExporter implements StreamExporterInterface
             $columnsProperty->setAccessible(true);
             $columns = $columnsProperty->getValue($provider);
             
-            // Add single sheet with extracted query and columns
-            $multiSheetExporter->addSheet('Sheet1', $query, $columns);
+            // Extract data mapper as well!
+            $dataMapperProperty = $reflection->getProperty('dataMapper');
+            $dataMapperProperty->setAccessible(true);
+            $dataMapper = $dataMapperProperty->getValue($provider);
+            
+            
+            // Add single sheet with extracted query, columns, AND data mapper
+            $multiSheetExporter->addSheet('Sheet1', $query, $columns, [
+                'data_mapper' => $dataMapper
+            ]);
         } else {
             // For other providers like ArrayDataProvider, fall back to simple XML streaming
             // This won't create a perfect XLSX but will download

@@ -9,7 +9,7 @@ A memory-efficient Laravel package for exporting Excel files without running int
 ## Features
 
 - **Memory Efficient**: Uses different optimized approaches per format - true streaming for CSV, temporary files for XLSX
-- **Flexible Data Sources**: Works with Eloquent queries, arrays, or custom data providers
+- **Flexible Data Sources**: Works with Eloquent queries, arrays, custom data providers, and data mapper callbacks
 - **Multiple Formats**: Supports CSV and XLSX formats
 - **Multi-Sheet Support**: Create XLSX files with multiple worksheets
 - **Chunked Processing**: Processes data in configurable chunks with smart optimization
@@ -23,12 +23,14 @@ A memory-efficient Laravel package for exporting Excel files without running int
 The package uses different approaches optimized for each export format:
 
 ### CSV Exports 🚀
+
 - **True Streaming**: Data streams directly from database to browser chunk-by-chunk
 - **Immediate Download**: Download dialog appears instantly as data flows
 - **Memory Efficient**: Never holds the full dataset in memory
 - **Best For**: Large datasets where immediate streaming is priority
 
-### XLSX Exports 📊  
+### XLSX Exports 📊
+
 - **Generate + Stream**: Creates complete XLSX file using temporary storage, then streams the file
 - **Excel Compatible**: Produces valid ZIP-structured XLSX files that Excel opens correctly
 - **Memory Optimized**: Uses chunked processing and temporary files to minimize memory usage
@@ -110,7 +112,7 @@ public function exportCustomData(ExcelStreamExporter $exporter)
         ['name' => 'John', 'email' => 'john@example.com'],
         ['name' => 'Jane', 'email' => 'jane@example.com'],
     ];
-    
+
     $headers = ['Name', 'Email'];
 
     return $exporter->streamFromArray($data, $headers, 'custom-data.csv');
@@ -151,9 +153,86 @@ public function exportCustom(ExcelStreamExporter $exporter)
 }
 ```
 
-### 5. Multi-Sheet XLSX Export
+### 5. Data Mapper for Complex Transformations
+
+Transform data row-by-row during streaming with custom callbacks. Perfect for complex calculations, relationship data, and custom formatting:
+
+```php
+public function exportOrdersWithCalculations(ExcelStreamExporter $exporter)
+{
+    $query = Order::with(['customer', 'items.product'])
+                  ->where('status', 'completed')
+                  ->orderBy('created_at');
+
+    $headers = ['Order #', 'Customer', 'Total Items', 'Revenue', 'Profit Margin', 'Status'];
+
+    return $exporter->streamFromQuery(
+        $query,
+        $headers,
+        'orders-with-calculations.xlsx',
+        ['format' => 'xlsx', 'chunk_size' => 500],
+        function($order) {
+            // Complex transformations applied per record during streaming
+            $totalRevenue = $order->items->sum(fn($item) => $item->quantity * $item->price);
+            $totalCost = $order->items->sum(fn($item) => $item->quantity * $item->product->cost);
+            $profitMargin = $totalRevenue > 0 ? (($totalRevenue - $totalCost) / $totalRevenue) * 100 : 0;
+
+            return [
+                $order->order_number,
+                $order->customer->name,
+                $order->items->count(),
+                number_format($totalRevenue, 2),
+                number_format($profitMargin, 1) . '%',
+                ucfirst($order->status)
+            ];
+        }
+    );
+}
+```
+
+**Data Mapper Benefits:**
+
+- 🚀 **Memory Efficient**: Transforms data row-by-row during streaming (no memory bloat)
+- 🔧 **Flexible**: Handle complex calculations, relationships, and custom formatting
+- 🛡️ **Error Resilient**: Automatic fallback to default column extraction on mapper errors
+- 🔄 **Backward Compatible**: Optional parameter, existing code continues working
+
+**Advanced Example - Financial Report:**
+
+```php
+public function exportFinancialReport(ExcelStreamExporter $exporter)
+{
+    $query = Account::with(['transactions', 'category'])
+                   ->where('active', true)
+                   ->orderBy('account_code');
+
+    return $exporter->streamFromQuery(
+        $query,
+        ['Code', 'Name', 'Category', 'Balance', 'Last Transaction', 'Status'],
+        'financial-report.csv', // CSV for maximum streaming performance
+        ['format' => 'csv', 'chunk_size' => 2000],
+        function($account) {
+            $balance = $account->transactions->sum('amount');
+            $lastTransaction = $account->transactions->sortByDesc('created_at')->first();
+
+            return [
+                $account->account_code,
+                $account->name,
+                $account->category->name ?? 'Uncategorized',
+                '$' . number_format($balance, 2),
+                $lastTransaction ? $lastTransaction->created_at->format('Y-m-d') : 'Never',
+                $balance >= 0 ? 'Positive' : 'Negative'
+            ];
+        }
+    );
+}
+```
+
+### 6. Multi-Sheet XLSX Export
 
 Create XLSX files with multiple worksheets in a single file:
+
+#### Basic Multi-Sheet Export
 
 ```php
 public function exportMultiSheet(ExcelStreamExporter $exporter)
@@ -179,6 +258,112 @@ public function exportMultiSheet(ExcelStreamExporter $exporter)
 }
 ```
 
+#### Advanced Multi-Sheet with Data Mappers 🎯
+
+Combine multi-sheet functionality with data transformation for powerful business reports:
+
+```php
+public function exportAdvancedMultiSheet(ExcelStreamExporter $exporter)
+{
+    $sheets = [
+        // Sheet 1: Customer Summary with Financial Calculations
+        'Customer Summary' => [
+            'query' => User::with(['orders'])->whereHas('orders'),
+            'columns' => ['Name', 'Email', 'Orders Count', 'Total Spent', 'Avg Order Value', 'Status'],
+            'options' => [
+                'chunk_size' => 500,
+                'data_mapper' => function($customer) {
+                    $orders = $customer->orders;
+                    $totalSpent = $orders->sum('total_amount');
+                    $avgOrderValue = $orders->avg('total_amount');
+
+                    return [
+                        $customer->name,
+                        $customer->email,
+                        $orders->count(),
+                        '$' . number_format($totalSpent, 2),
+                        '$' . number_format($avgOrderValue ?? 0, 2),
+                        $totalSpent > 1000 ? 'VIP' : ($totalSpent > 500 ? 'Regular' : 'New')
+                    ];
+                }
+            ]
+        ],
+
+        // Sheet 2: Product Performance Analytics
+        'Product Performance' => [
+            'query' => Product::with(['orderItems'])->where('is_active', true),
+            'columns' => ['Product', 'SKU', 'Price', 'Units Sold', 'Revenue', 'Performance Rating'],
+            'options' => [
+                'chunk_size' => 1000,
+                'data_mapper' => function($product) {
+                    $orderItems = $product->orderItems;
+                    $totalSold = $orderItems->sum('quantity');
+                    $revenue = $orderItems->sum(fn($item) => $item->quantity * $item->price);
+
+                    $performance = 'Low';
+                    if ($totalSold > 100) $performance = 'High';
+                    elseif ($totalSold > 50) $performance = 'Medium';
+
+                    return [
+                        $product->name,
+                        $product->sku,
+                        '$' . number_format($product->price, 2),
+                        $totalSold,
+                        '$' . number_format($revenue, 2),
+                        $performance
+                    ];
+                }
+            ]
+        ],
+
+        // Sheet 3: Basic Orders (No Data Mapper - Direct Column Export)
+        'Recent Orders' => [
+            'query' => Order::where('created_at', '>=', now()->subDays(30))
+                           ->orderBy('created_at', 'desc'),
+            'columns' => ['order_number', 'status', 'total_amount', 'created_at']
+        ],
+
+        // Sheet 4: Complex Financial Report
+        'Financial Analysis' => [
+            'query' => Order::with(['user', 'orderItems.product'])
+                           ->where('status', 'completed')
+                           ->where('created_at', '>=', now()->subMonth()),
+            'columns' => ['Order #', 'Customer', 'Items', 'Revenue', 'Est. Cost', 'Profit', 'Margin %'],
+            'options' => [
+                'chunk_size' => 300,
+                'data_mapper' => function($order) {
+                    $items = $order->orderItems;
+                    $revenue = $items->sum(fn($item) => $item->quantity * $item->price);
+                    $cost = $items->sum(fn($item) => $item->quantity * ($item->product->cost ?? $item->price * 0.6));
+                    $profit = $revenue - $cost;
+                    $margin = $revenue > 0 ? ($profit / $revenue) * 100 : 0;
+
+                    return [
+                        $order->order_number,
+                        $order->user->name,
+                        $items->count(),
+                        '$' . number_format($revenue, 2),
+                        '$' . number_format($cost, 2),
+                        '$' . number_format($profit, 2),
+                        number_format($margin, 1) . '%'
+                    ];
+                }
+            ]
+        ]
+    ];
+
+    return $exporter->streamWrapAsSheets($sheets, 'advanced-business-report.xlsx');
+}
+```
+
+**Multi-Sheet Data Mapper Features:**
+
+- 🎯 **Per-Sheet Transformation**: Each sheet can have its own data mapper with unique business logic
+- 📊 **Mixed Sheet Types**: Combine sheets with data mappers and basic column exports in the same file
+- 🚀 **Memory Efficient**: Data mappers work seamlessly with chunked processing for large datasets
+- 🛡️ **Error Resilient**: Automatic fallback to column extraction if mapper fails on any sheet
+- ⚙️ **Flexible Options**: Custom chunk sizes and options per sheet
+
 ## Logging
 
 The package includes comprehensive logging capabilities:
@@ -195,6 +380,7 @@ The package includes comprehensive logging capabilities:
 ```
 
 Log entries include:
+
 - Export start/completion with record counts
 - Memory usage and performance metrics
 - Execution time warnings
@@ -209,13 +395,13 @@ The package comes with sensible defaults, but you can customize everything:
 // config/excel-export-streamer.php
 return [
     'default_chunk_size' => 1000,
-    
+
     'memory' => [
         'max_chunk_size' => 5000,
         'min_chunk_size' => 100,
         'auto_adjust_chunks' => true,
     ],
-    
+
     'formats' => [
         'csv' => [
             'delimiter' => ',',
@@ -227,12 +413,12 @@ return [
             'temp_dir' => null,
         ],
     ],
-    
+
     'filename' => [
         'include_timestamp' => true,
         'sanitize_filename' => true,
     ],
-    
+
     'performance' => [
         'disable_query_log' => true,
         'gc_collect_cycles' => true,
@@ -242,7 +428,7 @@ return [
         'complex_query_chunk_size' => 500,
         'simple_query_chunk_size' => 2000,
     ],
-    
+
     'logging' => [
         'enabled' => true,
         'log_exports' => true,
@@ -290,23 +476,23 @@ class User extends Model implements ExportableInterface
 
 ```javascript
 function downloadExport() {
-    window.location.href = '/export/users';
+  window.location.href = "/export/users";
 }
 
 // With fetch for better error handling
 async function downloadExport() {
-    try {
-        const response = await fetch('/export/users');
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'users-export.csv';
-        a.click();
-        window.URL.revokeObjectURL(url);
-    } catch (error) {
-        console.error('Export failed:', error);
-    }
+  try {
+    const response = await fetch("/export/users");
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "users-export.csv";
+    a.click();
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Export failed:", error);
+  }
 }
 ```
 
@@ -314,58 +500,62 @@ async function downloadExport() {
 
 ```vue
 <template>
-    <button @click="exportUsers" :disabled="exporting">
-        {{ exporting ? 'Exporting...' : 'Export Users' }}
-    </button>
+  <button @click="exportUsers" :disabled="exporting">
+    {{ exporting ? "Exporting..." : "Export Users" }}
+  </button>
 </template>
 
 <script>
 export default {
-    data() {
-        return {
-            exporting: false
-        }
+  data() {
+    return {
+      exporting: false,
+    };
+  },
+  methods: {
+    async exportUsers() {
+      this.exporting = true;
+      try {
+        const response = await fetch("/export/users");
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "users-export.csv";
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        alert("Export failed");
+      } finally {
+        this.exporting = false;
+      }
     },
-    methods: {
-        async exportUsers() {
-            this.exporting = true;
-            try {
-                const response = await fetch('/export/users');
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'users-export.csv';
-                a.click();
-                window.URL.revokeObjectURL(url);
-            } catch (error) {
-                alert('Export failed');
-            } finally {
-                this.exporting = false;
-            }
-        }
-    }
-}
+  },
+};
 </script>
 ```
 
 ## Performance Tips
 
 ### Format Selection
+
 1. **Choose CSV for True Streaming**: For maximum performance and immediate download, use CSV format
 2. **Use XLSX When Excel Compatibility Required**: Accept the trade-off of file generation for proper Excel support
 3. **Consider Dataset Size**: CSV handles millions of records with constant memory usage; XLSX uses temporary files
 
-### Optimization Strategies  
+### Optimization Strategies
+
 4. **Optimize Chunk Size**: Start with 1000 for XLSX, 2000+ for CSV; adjust based on your data complexity
 5. **Use Specific Columns**: Only select columns you need - especially important for XLSX temporary file size
 6. **Add Database Indexes**: Ensure your queries are optimized for the columns you're ordering by
-7. **Monitor Memory Usage**: Enable memory warnings in config to track usage patterns
-8. **Enable Query Log Disabling**: Set `disable_query_log` to true in config for better performance
+7. **Use Data Mappers for Complex Logic**: Instead of pre-processing data, use mapper callbacks for transformations during streaming
+8. **Monitor Memory Usage**: Enable memory warnings in config to track usage patterns
+9. **Enable Query Log Disabling**: Set `disable_query_log` to true in config for better performance
 
 ### XLSX-Specific Tips
-9. **Temporary Directory**: Configure fast storage (SSD) for `temp_dir` in XLSX config  
-10. **Cleanup Monitoring**: Large XLSX exports create temporary files - ensure adequate disk space
+
+10. **Temporary Directory**: Configure fast storage (SSD) for `temp_dir` in XLSX config
+11. **Cleanup Monitoring**: Large XLSX exports create temporary files - ensure adequate disk space
 
 ## Error Handling
 
@@ -389,14 +579,14 @@ class ExportTest extends TestCase
     public function test_user_export()
     {
         $users = User::factory(10)->create();
-        
+
         $exporter = app(ExcelStreamExporter::class);
         $response = $exporter->streamFromQuery(
             User::query(),
             ['name', 'email'],
             'test-export.csv'
         );
-        
+
         $this->assertEquals(200, $response->getStatusCode());
         $this->assertStringContainsString('text/csv', $response->headers->get('Content-Type'));
     }
