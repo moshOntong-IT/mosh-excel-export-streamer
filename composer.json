@@ -21,10 +21,10 @@
     "chunking",
     "large-dataset"
   ],
-  "homepage": "https://github.com/moshontong/mosh-excel-export-streamer",
+  "homepage": "https://github.com/moshOntong-IT/mosh-excel-export-streamer",
   "support": {
-    "issues": "https://github.com/moshontong/mosh-excel-export-streamer/issues",
-    "source": "https://github.com/moshontong/mosh-excel-export-streamer"
+    "issues": "https://github.com/moshOntong-IT/mosh-excel-export-streamer/issues",
+    "source": "https://github.com/moshOntong-IT/mosh-excel-export-streamer"
   },
   "require": {
     "php": "^8.1",
